@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+venv/
+*.pyo
+*.pyd
+.Python
+
+# Environment variables
+.env
+.env.*
+!example.env
+
+# Node
+node_modules/
+build/
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Temporary files
+temp/
+uploads/
+*.log
+.coverage 

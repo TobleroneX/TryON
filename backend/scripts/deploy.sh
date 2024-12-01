@@ -1,14 +1,18 @@
 #!/bin/bash
 
-# Build Docker image
-docker build -t virtual-tryon-api .
+# Build and push images
+docker-compose -f docker-compose.prod.yml build
+docker-compose -f docker-compose.prod.yml push
 
-# Push to registry
-docker tag virtual-tryon-api registry.heroku.com/$APP_NAME/web
-docker push registry.heroku.com/$APP_NAME/web
+# Deploy to production
+docker stack deploy -c docker-compose.prod.yml tryon
 
-# Release to Heroku
-heroku container:release web -a $APP_NAME
+# Run migrations if needed
+docker-compose -f docker-compose.prod.yml exec web flask db upgrade
 
-# Run deployment tests
-pytest tests/test_deployment.py -v 
+# Run tests
+docker-compose -f docker-compose.yml run tests
+
+# Check deployment
+docker service ls
+docker service logs tryon_web 

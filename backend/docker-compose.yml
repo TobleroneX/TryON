@@ -1,20 +1,14 @@
 version: '3.8'
 
 services:
-  web:
+  api:
     build: .
     ports:
       - "5000:5000"
-    environment:
-      - FLASK_ENV=production
-      - HUGGINGFACE_API_KEY=${HUGGINGFACE_API_KEY}
-      - REDIS_URL=redis://redis:6379
-    depends_on:
-      - redis
     volumes:
+      - .:/app
       - ./temp:/app/temp
-
-  redis:
-    image: redis:6
-    ports:
-      - "6379:6379" 
+    environment:
+      - FLASK_APP=app.py
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1

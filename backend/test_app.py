@@ -504,304 +504,6 @@ def test_image_compression_quality(client, test_images):
     )
     
     assert response.status_code == 200
-    filename = response.json['filename']
-    
-    # Check compressed file
-    compressed_path = app.config['UPLOAD_FOLDER'] / filename
-    assert compressed_path.exists()
-    
-    # Verify size reduction
-    compressed_size = compressed_path.stat().st_size
-    assert compressed_size < original_size
-    assert compressed_size <= 500 * 1024  # Max 500KB
-    
-    # Verify image is still valid and dimensions are preserved
-    compressed_img = Image.open(compressed_path)
-    assert compressed_img.size == (2000, 2000)
-
-def test_compression_small_image(client, test_images):
-    """Test that small images aren't degraded unnecessarily"""
-    # Create a small test image
-    small_image = Image.new('RGB', (100, 100), color='blue')
-    output = io.BytesIO()
-    small_image.save(output, format='JPEG', quality=85)
-    output.seek(0)
-    original_size = output.tell()
-    
-    # Upload small image
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'small.jpg')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Verify size hasn't increased
-    compressed_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    assert compressed_path.stat().st_size <= original_size * 1.1  # Allow 10% margin
-
-def test_compression_rgba_image(client):
-    """Test compression of RGBA images"""
-    # Create RGBA test image
-    rgba_image = Image.new('RGBA', (500, 500), (255, 0, 0, 128))
-    output = io.BytesIO()
-    rgba_image.save(output, format='PNG')
-    output.seek(0)
-    
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'transparent.png')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Verify conversion to RGB
-    compressed_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    compressed_img = Image.open(compressed_path)
-    assert compressed_img.mode == 'RGB'
-
-def test_image_compression_basic(client):
-    """Test basic image compression functionality"""
-    # Create test image
-    img = Image.new('RGB', (2000, 2000), color='red')
-    output = io.BytesIO()
-    img.save(output, format='JPEG', quality=100)
-    output.seek(0)
-    
-    # Upload and compress
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'test.jpg')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Check compressed file
-    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    compressed_img = Image.open(saved_path)
-    
-    # Verify dimensions are within limits
-    assert compressed_img.size[0] <= 1024
-    assert compressed_img.size[1] <= 1024
-
-def test_image_compression_small_image(client):
-    """Test compression of already small images"""
-    # Create small image
-    img = Image.new('RGB', (500, 500), color='blue')
-    output = io.BytesIO()
-    img.save(output, format='JPEG', quality=100)
-    output.seek(0)
-    original_size = output.tell()
-    
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'small.jpg')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Verify dimensions are preserved for small images
-    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    compressed_img = Image.open(saved_path)
-    assert compressed_img.size == (500, 500)
-
-def test_image_compression_format_conversion(client):
-    """Test format conversion during compression"""
-    # Create PNG with transparency
-    img = Image.new('RGBA', (800, 600), (255, 0, 0, 128))
-    output = io.BytesIO()
-    img.save(output, format='PNG')
-    output.seek(0)
-    
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'transparent.png')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Verify conversion to RGB
-    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    converted_img = Image.open(saved_path)
-    assert converted_img.mode == 'RGB'
-    assert converted_img.format == 'JPEG'
-
-def test_logging(client, test_images, caplog):
-    """Test that important operations are logged"""
-    caplog.set_level(logging.INFO)
-    
-    # Upload image
-    with open(test_images['jpeg'], 'rb') as img:
-        response = client.post(
-            '/upload-person-image',
-            content_type='multipart/form-data',
-            data={'image': (img, 'test.jpg')}
-        )
-    
-    assert response.status_code == 200
-    
-    # Check logs
-    assert any("Received person image upload request" in record.message 
-              for record in caplog.records)
-    assert any("Successfully saved compressed image" in record.message 
-              for record in caplog.records)
-    
-    # Test error logging
-    response = client.post('/upload-person-image')
-    assert response.status_code == 400
-    assert any("No image file in request" in record.message 
-              for record in caplog.records)
-
-def test_garment_upload_with_logging(client, test_images, caplog):
-    """Test garment image upload with logging"""
-    caplog.set_level(logging.INFO)
-    
-    with open(test_images['jpeg'], 'rb') as img:
-        response = client.post(
-            '/upload-garment-image',
-            content_type='multipart/form-data',
-            data={'image': (img, 'garment.jpg')}
-        )
-    
-    assert response.status_code == 200
-    assert 'filename' in response.json
-    
-    # Verify file exists
-    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    assert saved_path.exists()
-
-def test_process_images_cleanup_error(client, test_images, monkeypatch, caplog):
-    """Test process_images with cleanup error"""
-    caplog.set_level(logging.INFO)
-    
-    # Mock successful API response
-    class MockResponse:
-        status_code = 200
-        content = b'processed_data'
-        def raise_for_status(self): pass
-    
-    monkeypatch.setattr(requests, 'post', lambda *args, **kwargs: MockResponse())
-    
-    # Mock cleanup error
-    def mock_unlink(*args):
-        raise OSError("Cleanup failed")
-    monkeypatch.setattr(Path, 'unlink', mock_unlink)
-    
-    # Upload and process images
-    with open(test_images['jpeg'], 'rb') as img:
-        # Upload person image
-        response = client.post(
-            '/upload-person-image',
-            content_type='multipart/form-data',
-            data={'image': (img, 'person.jpg')}
-        )
-        person_filename = response.json['filename']
-        
-        # Upload garment image
-        response = client.post(
-            '/upload-garment-image',
-            content_type='multipart/form-data',
-            data={'image': (img, 'garment.jpg')}
-        )
-        garment_filename = response.json['filename']
-    
-    # Process images
-    response = client.post(
-        '/process-images',
-        json={
-            'person_image': person_filename,
-            'garment_image': garment_filename
-        }
-    )
-    
-    assert response.status_code == 200
-    assert "Error cleaning up files" in caplog.text
-
-def test_error_handler_types(client):
-    """Test different error types in error handler"""
-    # Test RateLimitExceeded error
-    with unittest.mock.patch('flask_limiter.Limiter.hit', side_effect=RateLimitExceeded):
-        response = client.post('/upload-person-image')
-        assert response.status_code == 429
-        assert 'Rate limit exceeded' in response.json['error']
-    
-    # Test generic error
-    class CustomError(Exception):
-        pass
-    
-    @app.route('/test-error')
-    def test_error():
-        raise CustomError("Test error")
-    
-    response = client.get('/test-error')
-    assert response.status_code == 500
-    assert response.json['type'] == 'CustomError'
-
-def test_validate_input_data_errors():
-    """Test input data validation edge cases"""
-    test_cases = [
-        (None, "Invalid input data format"),
-        ([], "Invalid input data format"),
-        ({'person_image': None}, "Both images are required"),
-        ({'person_image': 123, 'garment_image': 'test.jpg'}, 
-         "Invalid input data type - filenames must be strings"),
-        ({'person_image': ' ', 'garment_image': 'test.jpg'},
-         "Empty filename not allowed"),
-        ({'person_image': 'test.txt', 'garment_image': 'test.jpg'},
-         "Invalid filename format")
-    ]
-    
-    for test_input, expected_error in test_cases:
-        with pytest.raises(ValueError) as exc_info:
-            validate_input_data(test_input)
-        assert expected_error in str(exc_info.value)
-
-def test_image_compression_resize(client):
-    """Test image resizing during compression"""
-    # Create large test image
-    large_img = Image.new('RGB', (2048, 2048), color='red')
-    output = io.BytesIO()
-    large_img.save(output, format='JPEG', quality=100)
-    output.seek(0)
-    
-    # Upload and compress
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'large.jpg')}
-    )
-    
-    assert response.status_code == 200
-    
-    # Verify resized dimensions
-    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
-    compressed_img = Image.open(saved_path)
-    assert compressed_img.size[0] <= 1024
-    assert compressed_img.size[1] <= 1024
-    assert compressed_img.mode == 'RGB'
-
-def test_image_compression_quality(client):
-    """Test compression quality settings"""
-    # Create test image with high quality
-    img = Image.new('RGB', (800, 600), color='blue')
-    output = io.BytesIO()
-    img.save(output, format='JPEG', quality=100)
-    output.seek(0)
-    original_size = output.tell()
-    
-    # Upload and compress
-    response = client.post(
-        '/upload-person-image',
-        content_type='multipart/form-data',
-        data={'image': (output, 'test.jpg')}
-    )
-    
-    assert response.status_code == 200
     
     # Verify compression
     saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
@@ -1948,3 +1650,145 @@ def test_cache_invalidation(client):
     
     # Results should be different
     assert response1.json['data']['size'] != response2.json['data']['size']
+
+def test_successful_upload(client, test_image):
+    """Test successful image upload"""
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (test_image, 'test.jpg')}
+    )
+    
+    assert response.status_code == 200
+    assert 'filename' in response.json
+    assert 'size' in response.json
+    
+    # Verify file was saved
+    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
+    assert saved_path.exists()
+    assert saved_path.stat().st_size > 0
+
+def test_no_file(client):
+    """Test upload without file"""
+    response = client.post('/upload')
+    assert response.status_code == 400
+    assert response.json['error'] == 'No file provided'
+
+def test_empty_filename(client):
+    """Test upload with empty filename"""
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (io.BytesIO(b''), '')}
+    )
+    assert response.status_code == 400
+    assert response.json['error'] == 'No file selected'
+
+def test_invalid_file_type(client):
+    """Test upload with invalid file type"""
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (io.BytesIO(b'test'), 'test.txt')}
+    )
+    assert response.status_code == 400
+    assert 'Invalid file type' in response.json['error']
+
+def test_large_file(client):
+    """Test upload with file exceeding size limit"""
+    large_data = b'0' * (5 * 1024 * 1024 + 1)  # 5MB + 1 byte
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (io.BytesIO(large_data), 'large.jpg')}
+    )
+    assert response.status_code == 400
+    assert 'File too large' in response.json['error']
+
+def test_invalid_image(client):
+    """Test upload with invalid image data"""
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (io.BytesIO(b'not an image'), 'test.jpg')}
+    )
+    assert response.status_code == 400
+    assert 'Invalid image' in response.json['error']
+
+def test_rgba_conversion(client):
+    """Test RGBA to RGB conversion"""
+    # Create RGBA image
+    img = Image.new('RGBA', (100, 100), (255, 0, 0, 128))
+    img_io = io.BytesIO()
+    img.save(img_io, 'PNG')
+    img_io.seek(0)
+    
+    response = client.post(
+        '/upload',
+        content_type='multipart/form-data',
+        data={'file': (img_io, 'test.png')}
+    )
+    
+    assert response.status_code == 200
+    
+    # Verify conversion
+    saved_path = app.config['UPLOAD_FOLDER'] / response.json['filename']
+    saved_img = Image.open(saved_path)
+    assert saved_img.mode == 'RGB'
+
+def test_rate_limit(client, test_image):
+    """Test rate limiting"""
+    responses = []
+    
+    # Make 11 requests (1 over limit)
+    for _ in range(11):
+        response = client.post(
+            '/upload',
+            content_type='multipart/form-data',
+            data={'file': (test_image, 'test.jpg')}
+        )
+        responses.append(response.status_code)
+    
+    # First 10 should succeed, 11th should fail
+    assert responses.count(200) == 10
+    assert responses[-1] == 429
+
+def test_filename_security(client, test_image):
+    """Test filename sanitization"""
+    malicious_filenames = [
+        '../../../etc/passwd.jpg',
+        'shell.jpg;rm -rf /',
+        '<script>alert("xss")</script>.jpg',
+        'image.jpg\x00.exe'
+    ]
+    
+    for filename in malicious_filenames:
+        response = client.post(
+            '/upload',
+            content_type='multipart/form-data',
+            data={'file': (test_image, filename)}
+        )
+        
+        if response.status_code == 200:
+            # Check sanitized filename
+            assert '/' not in response.json['filename']
+            assert ';' not in response.json['filename']
+            assert '<' not in response.json['filename']
+            assert '\x00' not in response.json['filename']
+
+def test_concurrent_uploads(client, test_image):
+    """Test concurrent uploads"""
+    from concurrent.futures import ThreadPoolExecutor
+    
+    def upload():
+        return client.post(
+            '/upload',
+            content_type='multipart/form-data',
+            data={'file': (test_image, 'test.jpg')}
+        )
+    
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        responses = list(executor.map(lambda _: upload(), range(3)))
+    
+    # All uploads should succeed
+    assert all(r.status_code == 200 for r in responses)

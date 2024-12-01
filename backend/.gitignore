@@ -1,35 +1,21 @@
-# Environment variables
-.env
-.env.*
-!example.env
-
 # Python
 __pycache__/
 *.pyc
 .pytest_cache/
-*.pyo
-*.pyd
-.Python
-env/
 venv/
-.env/
-.venv/
+
+# Environment
+.env
+.env.*
+!.env.example
 
 # IDE
-.idea/
 .vscode/
-*.swp
-*.swo
+.idea/
 
-# Temporary files
+# Temporäre Dateien
 temp/
-test_images/
-.coverage
-htmlcov/
-
-# Logs
 *.log
-logs/
 
 # Docker
 .docker/
