@@ -1,0 +1,35 @@
+# Environment variables
+.env
+.env.*
+!example.env
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Temporary files
+temp/
+test_images/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# Docker
+.docker/

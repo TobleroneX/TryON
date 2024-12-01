@@ -1,0 +1,45 @@
+mkdir virtual-tryon-app
+cd virtual-tryon-app
+mkdir backend frontend 
+cd frontend
+npx create-react-app . 
+npm start 
+npm test 
+cd backend
+pip install -r requirements.txt
+pip install flask-limiter
+
+# Create and set permissions for temp directories
+mkdir -p temp test_images
+chmod 777 temp test_images
+
+# Run all tests with coverage
+python -m pytest -v --cov=. --cov-report=term-missing
+
+# Run only upload tests
+python -m pytest -v -m upload
+
+# Run only process tests
+python -m pytest -v -m process
+
+# Run only API tests
+python -m pytest -v -m api
+
+# Generate HTML coverage report
+python -m pytest --cov-report=html
+
+# Show test durations
+python -m pytest --durations=10
+
+python app.py 
+
+# Test person image upload
+curl -X POST -F "image=@test.jpg" http://localhost:5000/upload-person-image
+
+# Test garment image upload
+curl -X POST -F "image=@test.jpg" http://localhost:5000/upload-garment-image
+
+# Test processing
+curl -X POST -H "Content-Type: application/json" \
+  -d '{"person_image":"test.jpg","garment_image":"test.jpg"}' \
+  http://localhost:5000/process-images
